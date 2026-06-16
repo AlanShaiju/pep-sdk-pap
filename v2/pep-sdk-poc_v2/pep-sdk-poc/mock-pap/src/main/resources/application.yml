@@ -1,0 +1,6 @@
+server:
+  port: 9090
+
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level %logger{20} - %msg%n"

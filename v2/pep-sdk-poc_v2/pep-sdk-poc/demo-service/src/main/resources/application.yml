@@ -1,0 +1,33 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:demo;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+pap:
+  sdk:
+    base-url: http://localhost:9090
+    mode: SYNC           # global default; @PapEntity per-operation modes win
+    outbox:
+      poll-interval: 2s
+      batch-size: 25
+      max-attempts: 5
+
+logging:
+  level:
+    com.example.pep: INFO
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level %logger{20} - %msg%n"
