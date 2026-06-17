@@ -1,0 +1,45 @@
+---
+config:
+  theme: default
+  flowchart:
+    useMaxWidth: true
+---
+graph TD
+    AppStart([Spring Boot Application Starts]) --> AutoConfig["PapSdkAutoConfiguration discovered"]
+    AutoConfig --> Bean1["1. PapEntityRegistry via MetadataLoader.load()"]
+    Bean1 --> B1a["getResources META-INF/pep-sdk/metadata.json"]
+    B1a --> B1b["parse each, resolve dot-paths via reflection"]
+    B1b --> ResolveFail{"Dot-paths resolve?"}
+    ResolveFail -->|NO| FailResolve["FAILURE: dot-path fails, app stops"]
+    ResolveFail -->|YES| B1c["build Map of Class to PapEntityDescriptor"]
+    B1c --> DupCheck{"Duplicate entity class?"}
+    DupCheck -->|YES| FailDup["FAILURE: same class in two modules"]
+    DupCheck -->|NO| Bean2["2. PapCatalog parse pap-endpoints.json"]
+    Bean2 --> CatCheck{"Catalog valid?"}
+    CatCheck -->|NO| FailCat["FAILURE: malformed catalog"]
+    CatCheck -->|YES| Bean3["3. PapRequestBuilder"]
+    Bean3 --> Bean4["4. RestClient with base-url"]
+    Bean4 --> UrlCheck{"base-url set?"}
+    UrlCheck -->|NO| FailUrl["FAILURE: missing pap.sdk.base-url"]
+    UrlCheck -->|YES| Bean5["5. Retry + 6. CircuitBreaker policies"]
+    Bean5 --> Bean7["7. PapClient wraps RestClient"]
+    Bean7 --> Bean8["8. Shared EntityManager proxy"]
+    Bean8 --> Bean9["9. DivergenceRecorder"]
+    Bean9 --> Bean10["10. PapTransactionSynchronization"]
+    Bean10 --> Bean11["11. PapEntityListener"]
+    Bean11 --> RegListener["12. HibernateListenerRegistrar.register()"]
+    RegListener --> UnwrapCheck{"EMF is Hibernate?"}
+    UnwrapCheck -->|NO| FailUnwrap["FAILURE: not Hibernate-backed"]
+    UnwrapCheck -->|YES| RegEvents["append POST_INSERT / POST_UPDATE / POST_DELETE listeners"]
+    RegEvents --> Migrations["13. Flyway migrations"]
+    Migrations --> V1["V1 demo schema"]
+    V1 --> V2["V2 STL_PEP_DIVERGENCE + sequence"]
+    V2 --> DbCheck{"DB reachable?"}
+    DbCheck -->|NO| FailDb["FAILURE: Postgres down, app stops"]
+    DbCheck -->|YES| Ready([Application Ready])
+    FailResolve --> Ready
+    FailDup --> Ready
+    FailCat --> Ready
+    FailUrl --> Ready
+    FailUnwrap --> Ready
+    FailDb --> Ready

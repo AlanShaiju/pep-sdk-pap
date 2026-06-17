@@ -1,0 +1,73 @@
+---
+config:
+  theme: default
+  flowchart:
+    useMaxWidth: true
+---
+graph TD
+    HTTPStart([HTTP POST /resources/ordered]) --> OpenTx["Spring @Transactional opens TX, ROLLBACK-ABLE"]
+    OpenTx --> Save1["save Pipeline -> Hibernate POST_INSERT"]
+    Save1 --> Listener1["PapEntityListener.onPostInsert()"]
+    Listener1 --> ActiveCheck{"TX active?"}
+    ActiveCheck -->|NO| FailNoTx["FAILURE 1: no active transaction"]
+    ActiveCheck -->|YES| GetBuffer["get/create ChangeBuffer in ThreadLocal"]
+    GetBuffer --> Reg["first time: registerSynchronization()"]
+    Reg --> Append1["append PapEntityChange Pipeline CREATE SYNC"]
+    Append1 --> Save2["save Deployment -> POST_INSERT"]
+    Save2 --> Append2["append, buffer = Pipeline, Deployment"]
+    Append2 --> Save3["save Monitor -> POST_INSERT"]
+    Save3 --> Append3["append, buffer = Pipeline, Deployment, Monitor"]
+    Append3 --> Return["controller returns, TX still open"]
+    Return --> BeforeCommit["beforeCommit CRITICAL PHASE"]
+    BeforeCommit --> Flush["entityManager.flush() runs deferred SQL"]
+    Flush --> FlushCheck{"flush OK?"}
+    FlushCheck -->|NO| FailFlush["FAILURE 2: constraint violation, rollback"]
+    FlushCheck -->|YES| Drain["drain buffer in order"]
+    Drain --> Dispatch1["DISPATCH PIPELINE"]
+    Dispatch1 --> FindDesc["registry.find(Pipeline.class)"]
+    FindDesc --> DescCheck{"descriptor found?"}
+    DescCheck -->|NO| FailDesc["FAILURE 3: no descriptor, rollback"]
+    DescCheck -->|YES| Build["PapRequestBuilder.build resolveSources + endpointFor"]
+    Build --> BuildCheck{"resolve + catalog OK?"}
+    BuildCheck -->|NO| FailBuild["FAILURE 4/5: dot-path null or unknown entity, rollback"]
+    BuildCheck -->|YES| Send["PapClient.send with Retry + CircuitBreaker"]
+    Send --> Status{"HTTP status?"}
+    Status -->|4xx| Fail4xx["FAILURE 6: PapRejectedException, no retry"]
+    Status -->|5xx| Fail5xx["FAILURE 7: PapUnavailableException, retry 3x"]
+    Status -->|timeout| FailTo["FAILURE 8: ResourceAccessException, retry"]
+    Status -->|CB open| FailCb["FAILURE 9: CallNotPermitted, fail-fast"]
+    Status -->|2xx| Success1["Pipeline accepted"]
+    Fail4xx --> Rollback["beforeCommit throws -> TX rollback, B and C never sent"]
+    Fail5xx --> Rollback
+    FailTo --> Rollback
+    FailCb --> Rollback
+    Success1 --> TxId["currentOrNewTransactionId()"]
+    TxId --> TxIdCheck{"txId in ThreadLocal?"}
+    TxIdCheck -->|NO| GenTxId["nextval sequence -> 41, bind to ThreadLocal"]
+    TxIdCheck -->|YES| UseTxId["reuse existing 41"]
+    GenTxId --> Record1["recordPending 41 REQUIRES_NEW"]
+    UseTxId --> Record1
+    Record1 --> Insert1["INSERT STL_PEP_DIVERGENCE status PENDING"]
+    Insert1 --> InsertCheck{"INSERT OK?"}
+    InsertCheck -->|NO| FailInsert["FAILURE 10: DataAccessException, UNDETECTED DIVERGENCE"]
+    InsertCheck -->|YES| Commit1["commit divergence TX, row durable"]
+    Commit1 --> Dispatch2["DISPATCH DEPLOYMENT same flow, reuse 41"]
+    Dispatch2 --> Dispatch3["DISPATCH MONITOR same flow, reuse 41"]
+    Dispatch3 --> ThreePending["3 PENDING rows, all txId 41"]
+    ThreePending --> JdbcCommit["Spring issues JDBC COMMIT"]
+    JdbcCommit --> CommitCheck{"commit OK?"}
+    CommitCheck -->|NO| FailCommit["FAILURE 11: rollback after PAP success"]
+    CommitCheck -->|YES| AfterCommitted["afterCompletion COMMITTED"]
+    AfterCommitted --> Delete["resolveCommitted 41 -> DELETE 3 PENDING rows"]
+    Delete --> Cleanup["unbind TX_ID_KEY and BUFFER_KEY"]
+    Cleanup --> Response["200 OK"]
+    FailCommit --> AfterRolledBack["afterCompletion ROLLED_BACK"]
+    Rollback --> AfterRolledBack
+    AfterRolledBack --> MarkRejected["resolveRolledBack -> UPDATE PENDING to REJECTED_DATA"]
+    MarkRejected --> EndFail([END: divergence flagged for SRE])
+    Response --> End([END: transaction complete])
+    FailNoTx --> End
+    FailFlush --> End
+    FailDesc --> End
+    FailBuild --> End
+    FailInsert --> End

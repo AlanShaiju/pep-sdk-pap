@@ -1,0 +1,44 @@
+---
+config:
+  theme: default
+  flowchart:
+    useMaxWidth: true
+---
+graph TD
+    CompileStart([javac discovers annotation processor]) --> Init["PapAnnotationProcessor.init()"]
+    Init --> ProcessStart["PapAnnotationProcessor.process()<br/>for each @PapEntity class"]
+    ProcessStart --> LoadCatalog["1. Load CompileTimeCatalog<br/>parse pap-endpoints.json"]
+    LoadCatalog --> CatalogCheck{"Valid JSON?"}
+    CatalogCheck -->|NO| FailCatalog1["FAILURE 1: Malformed JSON"]
+    CatalogCheck -->|YES| ValidateEntity["2. Validate @PapEntity in catalog"]
+    ValidateEntity --> EntityCheck{"Entity in catalog?"}
+    EntityCheck -->|NO| FailEntity["FAILURE 2: Unknown entity"]
+    EntityCheck -->|YES| ValidateAttributes["3. Validate @PapAttribute, find @Id"]
+    ValidateAttributes --> IdCheck{"Has @Id?"}
+    IdCheck -->|NO| FailId["FAILURE 3: No @Id field"]
+    IdCheck -->|YES| CheckDups["4. Check duplicate source names"]
+    CheckDups --> DupCheck{"Duplicates?"}
+    DupCheck -->|YES| FailDups["FAILURE 4: Duplicate source"]
+    DupCheck -->|NO| ValidateIncludes["5. Validate @PapInclude dot-paths"]
+    ValidateIncludes --> DotPathValidator["DotPathValidator resolves chains"]
+    DotPathValidator --> PathCheck{"Path valid?"}
+    PathCheck -->|NO| FailPath["FAILURE 5: Path does not resolve"]
+    PathCheck -->|YES| CheckCoverage["6. Check coverage rule"]
+    CheckCoverage --> CovCheck{"All required reachable?"}
+    CovCheck -->|NO| FailCov["FAILURE 6: Required source missing"]
+    CovCheck -->|YES| GenerateMetadata["7. Generate metadata.json"]
+    GenerateMetadata --> WriteFile["write target/classes/META-INF/pep-sdk/metadata.json"]
+    WriteFile --> FileCheck{"Write OK?"}
+    FileCheck -->|NO| FailFile["FAILURE 7: File write error"]
+    FileCheck -->|YES| Success["metadata.json created"]
+    Success --> MoreEntities{"More entities?"}
+    MoreEntities -->|YES| ProcessStart
+    MoreEntities -->|NO| CompileEnd["Compilation complete"]
+    FailCatalog1 --> CompileEnd
+    FailEntity --> CompileEnd
+    FailId --> CompileEnd
+    FailDups --> CompileEnd
+    FailPath --> CompileEnd
+    FailCov --> CompileEnd
+    FailFile --> CompileEnd
+    CompileEnd --> End([END: COMPILE PHASE])
