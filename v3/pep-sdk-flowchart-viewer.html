@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PEP SDK - Complete Flow Visualization</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif; background:linear-gradient(135deg,#667eea,#764ba2); color:#333; min-height:100vh; padding:20px; }
+.container { max-width:1500px; margin:0 auto; background:#fff; border-radius:12px; box-shadow:0 20px 60px rgba(0,0,0,.3); overflow:hidden; }
+header { background:linear-gradient(135deg,#667eea,#764ba2); color:#fff; padding:36px 40px; text-align:center; }
+header h1 { font-size:2.2em; margin-bottom:8px; }
+header p { opacity:.95; }
+.tabs { display:flex; background:#f5f5f5; border-bottom:2px solid #ddd; overflow-x:auto; }
+.tab-button { flex:1; padding:16px 20px; background:none; border:none; cursor:pointer; font-size:1em; font-weight:600; color:#666; border-bottom:3px solid transparent; white-space:nowrap; transition:all .2s; }
+.tab-button:hover { background:#ececec; color:#333; }
+.tab-button.active { color:#667eea; border-bottom-color:#667eea; background:#fff; }
+.content { padding:32px 40px; }
+.tab-content { display:none; }
+.tab-content.active { display:block; }
+.phase-indicator { display:inline-block; padding:4px 14px; background:#667eea; color:#fff; border-radius:20px; font-size:.8em; font-weight:700; margin-bottom:12px; letter-spacing:.5px; }
+h2 { margin-bottom:16px; color:#2b2b3a; }
+.description { background:#eef3fb; border-left:4px solid #667eea; padding:14px 18px; margin-bottom:22px; border-radius:4px; line-height:1.6; }
+.description h3 { color:#667eea; margin-bottom:6px; font-size:1em; }
+.description ul { margin-left:20px; margin-top:8px; }
+.diagram-wrap { background:#fafafa; border:1px solid #eee; border-radius:8px; padding:16px; overflow-x:auto; }
+.mermaid { display:flex; justify-content:center; min-height:60px; }
+.key-points { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; margin-top:22px; }
+.key-point { background:#f9f9fb; padding:14px 16px; border-radius:8px; border-left:3px solid #667eea; }
+.key-point h4 { margin-bottom:6px; font-size:.92em; color:#333; }
+.key-point p { font-size:.88em; color:#666; line-height:1.5; }
+.legend { display:flex; gap:22px; flex-wrap:wrap; margin-top:20px; padding:14px 16px; background:#fafafa; border-radius:8px; font-size:.88em; }
+.legend-item { display:flex; align-items:center; gap:8px; }
+.dot { width:14px; height:14px; border-radius:3px; }
+.green{background:#2e7d32;} .red{background:#c62828;} .blue{background:#1565c0;} .orange{background:#ef6c00;}
+footer { background:#f5f5f5; padding:18px; text-align:center; color:#666; font-size:.85em; border-top:1px solid #ddd; line-height:1.6; }
+code { background:#eef; padding:1px 5px; border-radius:3px; font-size:.9em; }
+</style>
+</head>
+<body>
+<div class="container">
+<header>
+<h1>PEP SDK - Complete Flow Visualization</h1>
+<p>Compile Time &rarr; Startup &rarr; Request Handling (SYNC) - with failure scenarios</p>
+</header>
+<div class="tabs">
+<button class="tab-button active" onclick="switchTab(event,0)">Compile Time</button>
+<button class="tab-button" onclick="switchTab(event,1)">Startup Time</button>
+<button class="tab-button" onclick="switchTab(event,2)">Request Handling</button>
+<button class="tab-button" onclick="switchTab(event,3)">Overview</button>
+</div>
+<div class="content">
+
+<div class="tab-content active">
+<div class="phase-indicator">PHASE 1</div>
+<h2>Compile Time: Annotation Processor Validation</h2>
+<div class="description">
+<h3>What happens</h3>
+<p>On <code>mvn compile</code>, javac discovers the processor via <code>META-INF/services/javax.annotation.processing.Processor</code>. For each <code>@PapEntity</code> class it validates against the catalog and emits one <code>metadata.json</code> per module.</p>
+</div>
+<div class="diagram-wrap"><pre class="mermaid">graph TD
+    CompileStart([javac discovers annotation processor]) --> Init["PapAnnotationProcessor.init()"]
+    Init --> ProcessStart["PapAnnotationProcessor.process()<br/>for each @PapEntity class"]
+    ProcessStart --> LoadCatalog["1. Load CompileTimeCatalog<br/>parse pap-endpoints.json"]
+    LoadCatalog --> CatalogCheck{"Valid JSON?"}
+    CatalogCheck -->|NO| FailCatalog1["FAILURE 1: Malformed JSON"]
+    CatalogCheck -->|YES| ValidateEntity["2. Validate @PapEntity in catalog"]
+    ValidateEntity --> EntityCheck{"Entity in catalog?"}
+    EntityCheck -->|NO| FailEntity["FAILURE 2: Unknown entity"]
+    EntityCheck -->|YES| ValidateAttributes["3. Validate @PapAttribute, find @Id"]
+    ValidateAttributes --> IdCheck{"Has @Id?"}
+    IdCheck -->|NO| FailId["FAILURE 3: No @Id field"]
+    IdCheck -->|YES| CheckDups["4. Check duplicate source names"]
+    CheckDups --> DupCheck{"Duplicates?"}
+    DupCheck -->|YES| FailDups["FAILURE 4: Duplicate source"]
+    DupCheck -->|NO| ValidateIncludes["5. Validate @PapInclude dot-paths"]
+    ValidateIncludes --> DotPathValidator["DotPathValidator resolves chains"]
+    DotPathValidator --> PathCheck{"Path valid?"}
+    PathCheck -->|NO| FailPath["FAILURE 5: Path does not resolve"]
+    PathCheck -->|YES| CheckCoverage["6. Check coverage rule"]
+    CheckCoverage --> CovCheck{"All required reachable?"}
+    CovCheck -->|NO| FailCov["FAILURE 6: Required source missing"]
+    CovCheck -->|YES| GenerateMetadata["7. Generate metadata.json"]
+    GenerateMetadata --> WriteFile["write target/classes/META-INF/pep-sdk/metadata.json"]
+    WriteFile --> FileCheck{"Write OK?"}
+    FileCheck -->|NO| FailFile["FAILURE 7: File write error"]
+    FileCheck -->|YES| Success["metadata.json created"]
+    Success --> MoreEntities{"More entities?"}
+    MoreEntities -->|YES| ProcessStart
+    MoreEntities -->|NO| CompileEnd["Compilation complete"]
+    FailCatalog1 --> CompileEnd
+    FailEntity --> CompileEnd
+    FailId --> CompileEnd
+    FailDups --> CompileEnd
+    FailPath --> CompileEnd
+    FailCov --> CompileEnd
+    FailFile --> CompileEnd
+    CompileEnd --> End([END: COMPILE PHASE])
+</pre></div>
+<div class="key-points">
+<div class="key-point"><h4>Success outcome</h4><p>One <code>metadata.json</code> per module, bundled into the JAR under <code>META-INF/pep-sdk/</code>.</p></div>
+<div class="key-point"><h4>Failure points</h4><p>7 validation gates catch invalid configurations before deployment.</p></div>
+<div class="key-point"><h4>Timing</h4><p>Once per module compile; metadata is immutable at runtime.</p></div>
+</div>
+<div class="legend">
+<div class="legend-item"><span class="dot green"></span>Success / valid</div>
+<div class="legend-item"><span class="dot red"></span>Failure / invalid</div>
+<div class="legend-item"><span class="dot blue"></span>Process / action</div>
+<div class="legend-item"><span class="dot orange"></span>Decision point</div>
+</div>
+</div>
+
+<div class="tab-content">
+<div class="phase-indicator">PHASE 2</div>
+<h2>Startup Time: Bean Creation & Registration</h2>
+<div class="description">
+<h3>What happens</h3>
+<p><code>PapSdkAutoConfiguration</code> creates beans in dependency order: loads metadata into the registry, builds the resilient HTTP client, registers the Hibernate listener, and runs Flyway migrations.</p>
+</div>
+<div class="diagram-wrap"><pre class="mermaid">graph TD
+    AppStart([Spring Boot Application Starts]) --> AutoConfig["PapSdkAutoConfiguration discovered"]
+    AutoConfig --> Bean1["1. PapEntityRegistry via MetadataLoader.load()"]
+    Bean1 --> B1a["getResources META-INF/pep-sdk/metadata.json"]
+    B1a --> B1b["parse each, resolve dot-paths via reflection"]
+    B1b --> ResolveFail{"Dot-paths resolve?"}
+    ResolveFail -->|NO| FailResolve["FAILURE: dot-path fails, app stops"]
+    ResolveFail -->|YES| B1c["build Map of Class to PapEntityDescriptor"]
+    B1c --> DupCheck{"Duplicate entity class?"}
+    DupCheck -->|YES| FailDup["FAILURE: same class in two modules"]
+    DupCheck -->|NO| Bean2["2. PapCatalog parse pap-endpoints.json"]
+    Bean2 --> CatCheck{"Catalog valid?"}
+    CatCheck -->|NO| FailCat["FAILURE: malformed catalog"]
+    CatCheck -->|YES| Bean3["3. PapRequestBuilder"]
+    Bean3 --> Bean4["4. RestClient with base-url"]
+    Bean4 --> UrlCheck{"base-url set?"}
+    UrlCheck -->|NO| FailUrl["FAILURE: missing pap.sdk.base-url"]
+    UrlCheck -->|YES| Bean5["5. Retry + 6. CircuitBreaker policies"]
+    Bean5 --> Bean7["7. PapClient wraps RestClient"]
+    Bean7 --> Bean8["8. Shared EntityManager proxy"]
+    Bean8 --> Bean9["9. DivergenceRecorder"]
+    Bean9 --> Bean10["10. PapTransactionSynchronization"]
+    Bean10 --> Bean11["11. PapEntityListener"]
+    Bean11 --> RegListener["12. HibernateListenerRegistrar.register()"]
+    RegListener --> UnwrapCheck{"EMF is Hibernate?"}
+    UnwrapCheck -->|NO| FailUnwrap["FAILURE: not Hibernate-backed"]
+    UnwrapCheck -->|YES| RegEvents["append POST_INSERT / POST_UPDATE / POST_DELETE listeners"]
+    RegEvents --> Migrations["13. Flyway migrations"]
+    Migrations --> V1["V1 demo schema"]
+    V1 --> V2["V2 STL_PEP_DIVERGENCE + sequence"]
+    V2 --> DbCheck{"DB reachable?"}
+    DbCheck -->|NO| FailDb["FAILURE: Postgres down, app stops"]
+    DbCheck -->|YES| Ready([Application Ready])
+    FailResolve --> Ready
+    FailDup --> Ready
+    FailCat --> Ready
+    FailUrl --> Ready
+    FailUnwrap --> Ready
+    FailDb --> Ready
+</pre></div>
+<div class="key-points">
+<div class="key-point"><h4>Ordered bean creation</h4><p>Each bean depends on prior ones; a missing dependency stops startup.</p></div>
+<div class="key-point"><h4>Database requirement</h4><p>Postgres must be reachable; Flyway creates <code>STL_PEP_DIVERGENCE</code> and its sequence.</p></div>
+<div class="key-point"><h4>Resilience</h4><p>Retry and circuit breaker are configured from properties at this stage.</p></div>
+</div>
+<div class="legend">
+<div class="legend-item"><span class="dot blue"></span>Bean creation step</div>
+<div class="legend-item"><span class="dot orange"></span>Decision point</div>
+<div class="legend-item"><span class="dot red"></span>Startup failure</div>
+</div>
+</div>
+
+<div class="tab-content">
+<div class="phase-indicator">PHASE 3</div>
+<h2>Request Handling: HTTP POST &rarr; PAP Dispatch &rarr; Divergence</h2>
+<div class="description">
+<h3>What happens</h3>
+<p>A <code>@Transactional</code> method saves three entities. Hibernate events buffer them in order; <code>beforeCommit()</code> dispatches each to the PAP and writes a PENDING row on success; <code>afterCompletion()</code> deletes those rows on commit or flips them to REJECTED_DATA on rollback.</p>
+</div>
+<div class="diagram-wrap"><pre class="mermaid">graph TD
+    HTTPStart([HTTP POST /resources/ordered]) --> OpenTx["Spring @Transactional opens TX, ROLLBACK-ABLE"]
+    OpenTx --> Save1["save Pipeline -> Hibernate POST_INSERT"]
+    Save1 --> Listener1["PapEntityListener.onPostInsert()"]
+    Listener1 --> ActiveCheck{"TX active?"}
+    ActiveCheck -->|NO| FailNoTx["FAILURE 1: no active transaction"]
+    ActiveCheck -->|YES| GetBuffer["get/create ChangeBuffer in ThreadLocal"]
+    GetBuffer --> Reg["first time: registerSynchronization()"]
+    Reg --> Append1["append PapEntityChange Pipeline CREATE SYNC"]
+    Append1 --> Save2["save Deployment -> POST_INSERT"]
+    Save2 --> Append2["append, buffer = Pipeline, Deployment"]
+    Append2 --> Save3["save Monitor -> POST_INSERT"]
+    Save3 --> Append3["append, buffer = Pipeline, Deployment, Monitor"]
+    Append3 --> Return["controller returns, TX still open"]
+    Return --> BeforeCommit["beforeCommit CRITICAL PHASE"]
+    BeforeCommit --> Flush["entityManager.flush() runs deferred SQL"]
+    Flush --> FlushCheck{"flush OK?"}
+    FlushCheck -->|NO| FailFlush["FAILURE 2: constraint violation, rollback"]
+    FlushCheck -->|YES| Drain["drain buffer in order"]
+    Drain --> Dispatch1["DISPATCH PIPELINE"]
+    Dispatch1 --> FindDesc["registry.find(Pipeline.class)"]
+    FindDesc --> DescCheck{"descriptor found?"}
+    DescCheck -->|NO| FailDesc["FAILURE 3: no descriptor, rollback"]
+    DescCheck -->|YES| Build["PapRequestBuilder.build resolveSources + endpointFor"]
+    Build --> BuildCheck{"resolve + catalog OK?"}
+    BuildCheck -->|NO| FailBuild["FAILURE 4/5: dot-path null or unknown entity, rollback"]
+    BuildCheck -->|YES| Send["PapClient.send with Retry + CircuitBreaker"]
+    Send --> Status{"HTTP status?"}
+    Status -->|4xx| Fail4xx["FAILURE 6: PapRejectedException, no retry"]
+    Status -->|5xx| Fail5xx["FAILURE 7: PapUnavailableException, retry 3x"]
+    Status -->|timeout| FailTo["FAILURE 8: ResourceAccessException, retry"]
+    Status -->|CB open| FailCb["FAILURE 9: CallNotPermitted, fail-fast"]
+    Status -->|2xx| Success1["Pipeline accepted"]
+    Fail4xx --> Rollback["beforeCommit throws -> TX rollback, B and C never sent"]
+    Fail5xx --> Rollback
+    FailTo --> Rollback
+    FailCb --> Rollback
+    Success1 --> TxId["currentOrNewTransactionId()"]
+    TxId --> TxIdCheck{"txId in ThreadLocal?"}
+    TxIdCheck -->|NO| GenTxId["nextval sequence -> 41, bind to ThreadLocal"]
+    TxIdCheck -->|YES| UseTxId["reuse existing 41"]
+    GenTxId --> Record1["recordPending 41 REQUIRES_NEW"]
+    UseTxId --> Record1
+    Record1 --> Insert1["INSERT STL_PEP_DIVERGENCE status PENDING"]
+    Insert1 --> InsertCheck{"INSERT OK?"}
+    InsertCheck -->|NO| FailInsert["FAILURE 10: DataAccessException, UNDETECTED DIVERGENCE"]
+    InsertCheck -->|YES| Commit1["commit divergence TX, row durable"]
+    Commit1 --> Dispatch2["DISPATCH DEPLOYMENT same flow, reuse 41"]
+    Dispatch2 --> Dispatch3["DISPATCH MONITOR same flow, reuse 41"]
+    Dispatch3 --> ThreePending["3 PENDING rows, all txId 41"]
+    ThreePending --> JdbcCommit["Spring issues JDBC COMMIT"]
+    JdbcCommit --> CommitCheck{"commit OK?"}
+    CommitCheck -->|NO| FailCommit["FAILURE 11: rollback after PAP success"]
+    CommitCheck -->|YES| AfterCommitted["afterCompletion COMMITTED"]
+    AfterCommitted --> Delete["resolveCommitted 41 -> DELETE 3 PENDING rows"]
+    Delete --> Cleanup["unbind TX_ID_KEY and BUFFER_KEY"]
+    Cleanup --> Response["200 OK"]
+    FailCommit --> AfterRolledBack["afterCompletion ROLLED_BACK"]
+    Rollback --> AfterRolledBack
+    AfterRolledBack --> MarkRejected["resolveRolledBack -> UPDATE PENDING to REJECTED_DATA"]
+    MarkRejected --> EndFail([END: divergence flagged for SRE])
+    Response --> End([END: transaction complete])
+    FailNoTx --> End
+    FailFlush --> End
+    FailDesc --> End
+    FailBuild --> End
+    FailInsert --> End
+</pre></div>
+<div class="key-points">
+<div class="key-point"><h4>Fail-fast dispatch</h4><p>If one entity fails, the rest are never sent and the whole transaction rolls back.</p></div>
+<div class="key-point"><h4>Lazy transaction_id</h4><p>Drawn from the sequence only on the first PAP success; reused by later entities.</p></div>
+<div class="key-point"><h4>Durable PENDING rows</h4><p>Written in a REQUIRES_NEW transaction, so they survive a business-TX rollback.</p></div>
+<div class="key-point"><h4>Undetected window</h4><p>PAP success followed by a failed PENDING insert leaves no trace (Failure 10).</p></div>
+</div>
+<div class="legend">
+<div class="legend-item"><span class="dot green"></span>2xx success</div>
+<div class="legend-item"><span class="dot red"></span>Failure / rollback</div>
+<div class="legend-item"><span class="dot orange"></span>Decision point</div>
+<div class="legend-item"><span class="dot blue"></span>Process / action</div>
+</div>
+</div>
+
+<div class="tab-content">
+<div class="phase-indicator">OVERVIEW</div>
+<h2>Complete System Overview</h2>
+<div class="description">
+<h3>How the phases connect</h3>
+<p>Compile-time metadata is bundled into the JAR, read at startup to build the registry and listener, then used at request time to dispatch entity changes to the PAP with divergence tracking.</p>
+</div>
+<div class="diagram-wrap"><pre class="mermaid">graph LR
+    subgraph Compile["COMPILE TIME"]
+        C1["@PapEntity classes"] --> C2["PapAnnotationProcessor validates"]
+        C2 --> C3["metadata.json per module"]
+    end
+    subgraph Startup["STARTUP TIME"]
+        S1["MetadataLoader reads all metadata.json"] --> S2["PapEntityRegistry built"]
+        S2 --> S3["PapClient + Retry + CircuitBreaker"]
+        S3 --> S4["PapEntityListener on Hibernate events"]
+        S4 --> S5["Flyway creates STL_PEP_DIVERGENCE"]
+    end
+    subgraph Request["REQUEST TIME (SYNC)"]
+        R1["entity saves -> Hibernate events"] --> R2["ChangeBuffer captures in order"]
+        R2 --> R3["beforeCommit dispatches to PAP"]
+        R3 --> R4["PENDING rows written per entity"]
+        R4 --> R5["afterCompletion resolves"]
+        R5 --> R6a["COMMITTED: delete rows"]
+        R5 --> R6b["ROLLED_BACK: mark REJECTED_DATA"]
+    end
+    C3 -.bundled in jar.-> S1
+    S5 -.ready.-> R1
+</pre></div>
+<div class="key-points">
+<div class="key-point"><h4>Metadata</h4><p>Compile-time generation avoids runtime reflection on the hot path.</p></div>
+<div class="key-point"><h4>Initialization</h4><p>Startup pre-builds every dispatch structure once.</p></div>
+<div class="key-point"><h4>Dispatch</h4><p>Requests reuse those structures for low-latency PAP calls.</p></div>
+<div class="key-point"><h4>Safety</h4><p>Divergence rows provide crash safety and a manual recovery path.</p></div>
+</div>
+</div>
+
+</div>
+<footer>
+<p><strong>PEP SDK Flow Visualization</strong> - Synchronous (SYNC-only) path.</p>
+<p>If a diagram looks blank, you may be offline: this page loads Mermaid from a CDN. The accompanying <code>.mmd</code> files render without any network.</p>
+</footer>
+</div>
+<script>
+mermaid.initialize({ startOnLoad:true, theme:'default', securityLevel:'loose', flowchart:{ useMaxWidth:true, htmlLabels:true } });
+function switchTab(e, i){
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-button').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-content')[i].classList.add('active');
+  e.currentTarget.classList.add('active');
+}
+</script>
+</body>
+</html>
