@@ -1,0 +1,35 @@
+server:
+  port: 9090
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/pep_demo
+    username: pep
+    password: pep
+  jpa:
+    hibernate:
+      ddl-auto: validate          # schema owned by Flyway, not Hibernate
+    properties:
+      hibernate:
+        format_sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+pap:
+  sdk:
+    enabled: true
+    base-url: http://localhost:8080      # point this at your real PAP
+    mode: SYNC
+    timeout:
+      connect: 2s
+      read: 10s
+    retry:
+      max-attempts: 3
+    circuit-breaker:
+      failure-rate-threshold: 50
+      sliding-window-size: 20
+
+logging:
+  level:
+    com.example.pep: INFO

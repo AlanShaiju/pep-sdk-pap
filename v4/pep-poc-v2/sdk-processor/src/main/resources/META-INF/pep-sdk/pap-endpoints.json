@@ -1,0 +1,29 @@
+{
+  "ResourceInstance": {
+    "create": {
+      "path": "/pap/v1/resource-instances",
+      "pathVariables": {},
+      "headers":       { "tenant_id": "tenant_id" },
+      "queryParams":   {},
+      "body":          { "resource_instance_code": "code",
+                         "resource_instance_name": "name",
+                         "description":            "description",
+                         "resource_type_id":       "resource_type_id" }
+    },
+    "update": {
+      "path": "/pap/v1/resource-instances/{id}",
+      "pathVariables": { "id": "id" },
+      "headers":       { "tenant_id": "tenant_id" },
+      "queryParams":   { "propagate": "propagate" },
+      "body":          { "resource_instance_name": "name",
+                         "description":            "description" }
+    },
+    "delete": {
+      "path": "/pap/v1/resource-instances/{id}",
+      "pathVariables": { "id": "id" },
+      "headers":       { "tenant_id": "tenant_id" },
+      "queryParams":   { "propagate": "propagate" },
+      "body":          {}
+    }
+  }
+}

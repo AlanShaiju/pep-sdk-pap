@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.example.pep</groupId>
+    <artifactId>pep-poc-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+
+    <properties>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <spring-boot.version>3.2.3</spring-boot.version>
+        <resilience4j.version>2.2.0</resilience4j.version>
+    </properties>
+
+    <modules>
+        <module>sdk-core</module>
+        <module>sdk-processor</module>
+        <module>sdk-client</module>
+        <module>sdk-sync</module>
+        <module>sdk-spring-boot-starter</module>
+        <module>demo-service</module>
+    </modules>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.github.resilience4j</groupId>
+                <artifactId>resilience4j-retry</artifactId>
+                <version>${resilience4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.resilience4j</groupId>
+                <artifactId>resilience4j-circuitbreaker</artifactId>
+                <version>${resilience4j.version}</version>
+            </dependency>
+            <!-- internal modules -->
+            <dependency><groupId>com.example.pep</groupId><artifactId>sdk-core</artifactId><version>${project.version}</version></dependency>
+            <dependency><groupId>com.example.pep</groupId><artifactId>sdk-processor</artifactId><version>${project.version}</version></dependency>
+            <dependency><groupId>com.example.pep</groupId><artifactId>sdk-client</artifactId><version>${project.version}</version></dependency>
+            <dependency><groupId>com.example.pep</groupId><artifactId>sdk-sync</artifactId><version>${project.version}</version></dependency>
+            <dependency><groupId>com.example.pep</groupId><artifactId>sdk-spring-boot-starter</artifactId><version>${project.version}</version></dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <version>${spring-boot.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.13.0</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>
