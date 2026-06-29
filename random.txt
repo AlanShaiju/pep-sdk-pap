@@ -1,0 +1,95 @@
+// ============================================================================
+// CLASS CONSTANT (add at class level near other constants)
+// ============================================================================
+
+private static final String JSON_FIELD_SEP = "\": \"";
+
+// ============================================================================
+// buildJson() - Main orchestrator (LOW cognitive complexity)
+// ============================================================================
+
+private String buildJson() {
+    StringBuilder sb = new StringBuilder("{\n  \"entities\": [\n");
+    for (int i = 0; i < entities.size(); i++) {
+        appendEntity(sb, entities.get(i), i < entities.size() - 1);
+    }
+    sb.append("  ]\n}");
+    return sb.toString();
+}
+
+// ============================================================================
+// Helper Methods - Each with single responsibility (LOW cognitive complexity)
+// ============================================================================
+
+private void appendEntity(StringBuilder sb, EntityMetadata em, boolean hasNext) {
+    sb.append("    {\n");
+    appendField(sb, "entityClass", em.type.getQualifiedName().toString());
+    appendField(sb, "papEntity", em.papEntity);
+    appendField(sb, "idField", em.idField.getSimpleName().toString());
+    appendProperties(sb, em.properties);
+    appendAttributes(sb, em.attributeFields);
+    appendIncludes(sb, em.includeFields);
+    appendOperationModes(sb, em.operationModes);
+    sb.append("    }");
+    if (hasNext) sb.append(",");
+    sb.append("\n");
+}
+
+private void appendProperties(StringBuilder sb, PapProperty[] properties) {
+    sb.append("      \"properties\": {");
+    boolean first = true;
+    for (PapProperty pp : properties) {
+        if (!first) sb.append(", ");
+        sb.append("\"").append(escape(pp.key())).append(JSON_FIELD_SEP)
+          .append(escape(pp.value())).append("\"");
+        first = false;
+    }
+    sb.append("},\n");
+}
+
+private void appendAttributes(StringBuilder sb, Map<String, VariableElement> attributeFields) {
+    sb.append("      \"attributes\": [\n");
+    boolean first = true;
+    for (Map.Entry<String, VariableElement> attr : attributeFields.entrySet()) {
+        if (!first) sb.append(",\n");
+        sb.append("        {\"fieldName\": \"").append(escape(attr.getValue().getSimpleName().toString()))
+          .append("\", \"attributeName\": \"").append(escape(attr.getKey())).append("\"}");
+        first = false;
+    }
+    sb.append("\n      ],\n");
+}
+
+private void appendIncludes(StringBuilder sb, List<VariableElement> includeFields) {
+    sb.append("      \"includes\": [\n");
+    boolean first = true;
+    for (VariableElement inc : includeFields) {
+        for (PapInclude ann : inc.getAnnotationsByType(PapInclude.class)) {
+            if (!first) sb.append(",\n");
+            sb.append("        {\"fieldName\": \"").append(escape(inc.getSimpleName().toString()))
+              .append("\", \"name\": \"").append(escape(ann.name()))
+              .append("\", \"attribute\": \"").append(escape(ann.attribute())).append("\"}");
+            first = false;
+        }
+    }
+    sb.append("\n      ],\n");
+}
+
+private void appendOperationModes(StringBuilder sb, PapOperationMode[] operationModes) {
+    sb.append("      \"operationModes\": {");
+    boolean first = true;
+    for (PapOperationMode om : operationModes) {
+        if (!first) sb.append(", ");
+        sb.append("\"").append(om.operation().name()).append(JSON_FIELD_SEP)
+          .append(om.mode().name()).append("\"");
+        first = false;
+    }
+    sb.append("}\n");
+}
+
+private static void appendField(StringBuilder sb, String key, String value) {
+    sb.append("      \"").append(key).append(JSON_FIELD_SEP).append(escape(value)).append("\",\n");
+}
+
+private static String escape(String s) {
+    return s == null ? "" : s.replace("\\", "\\\\").replace("\"", "\\\"");
+}
